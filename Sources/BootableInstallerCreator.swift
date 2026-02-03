@@ -663,10 +663,26 @@ class MistViewController: NSViewController {
 
     var onBack: (() -> Void)?
 
+    // UI Elements - Install view
+    private var installView: NSView!
+    private var statusBox: NSBox!
+    private var statusIconView: NSImageView!
     private var statusLabel: NSTextField!
-    private var actionButton: NSButton!
+    private var subStatusLabel: NSTextField!
+    private var installButton: NSButton!
     private var progressIndicator: NSProgressIndicator!
+
+    // UI Elements - List view
+    private var listView: NSView!
+    private var scrollView: NSScrollView!
+    private var tableView: NSTableView!
+    private var listStatusLabel: NSTextField!
+    private var refreshButton: NSButton!
+    private var downloadButton: NSButton!
+    private var listProgressIndicator: NSProgressIndicator!
+
     private var mistInstalled = false
+    private var availableInstallers: [(name: String, version: String, build: String, size: String)] = []
 
     override func loadView() {
         view = NSView(frame: NSRect(x: 0, y: 0, width: 500, height: 400))
@@ -693,32 +709,42 @@ class MistViewController: NSViewController {
         titleLabel.frame = NSRect(x: margin, y: view.bounds.height - margin - 70, width: view.bounds.width - margin * 2, height: 28)
         view.addSubview(titleLabel)
 
+        // Setup install view (shown when mist not installed)
+        setupInstallView(margin: margin)
+
+        // Setup list view (shown when mist is installed)
+        setupListView(margin: margin)
+    }
+
+    private func setupInstallView(margin: CGFloat) {
+        installView = NSView(frame: NSRect(x: 0, y: 0, width: view.bounds.width, height: 280))
+        view.addSubview(installView)
+
         // Description
         let descLabel = NSTextField(wrappingLabelWithString: "Mist is a powerful third-party tool for downloading macOS installers, firmware, and more. It supports downloading older versions and specific builds.")
         descLabel.font = NSFont.systemFont(ofSize: 13)
         descLabel.textColor = .secondaryLabelColor
-        descLabel.frame = NSRect(x: margin, y: view.bounds.height - margin - 140, width: view.bounds.width - margin * 2, height: 50)
-        view.addSubview(descLabel)
+        descLabel.frame = NSRect(x: margin, y: 200, width: view.bounds.width - margin * 2, height: 50)
+        installView.addSubview(descLabel)
 
         // Status box
-        let statusBox = NSBox(frame: NSRect(x: margin, y: 150, width: view.bounds.width - margin * 2, height: 100))
+        statusBox = NSBox(frame: NSRect(x: margin, y: 90, width: view.bounds.width - margin * 2, height: 100))
         statusBox.boxType = .custom
         statusBox.fillColor = NSColor.controlBackgroundColor
         statusBox.borderColor = NSColor.separatorColor
         statusBox.borderWidth = 1
         statusBox.cornerRadius = 8
-        view.addSubview(statusBox)
+        installView.addSubview(statusBox)
 
-        // Status icon placeholder
+        // Status icon
         let iconSize: CGFloat = 40
+        statusIconView = NSImageView(frame: NSRect(x: 20, y: (statusBox.bounds.height - iconSize) / 2, width: iconSize, height: iconSize))
         if #available(macOS 11.0, *) {
             let config = NSImage.SymbolConfiguration(pointSize: 30, weight: .medium)
-            let iconView = NSImageView(frame: NSRect(x: 20, y: (statusBox.bounds.height - iconSize) / 2, width: iconSize, height: iconSize))
-            iconView.image = NSImage(systemSymbolName: "checkmark.circle.fill", accessibilityDescription: nil)?.withSymbolConfiguration(config)
-            iconView.contentTintColor = .systemGreen
-            iconView.tag = 100
-            statusBox.addSubview(iconView)
+            statusIconView.image = NSImage(systemSymbolName: "xmark.circle.fill", accessibilityDescription: nil)?.withSymbolConfiguration(config)
+            statusIconView.contentTintColor = .systemRed
         }
+        statusBox.addSubview(statusIconView)
 
         // Status label
         statusLabel = NSTextField(labelWithString: "Checking for mist...")
@@ -726,11 +752,10 @@ class MistViewController: NSViewController {
         statusLabel.frame = NSRect(x: 70, y: 55, width: statusBox.bounds.width - 90, height: 20)
         statusBox.addSubview(statusLabel)
 
-        let subStatusLabel = NSTextField(labelWithString: "")
+        subStatusLabel = NSTextField(labelWithString: "")
         subStatusLabel.font = NSFont.systemFont(ofSize: 12)
         subStatusLabel.textColor = .secondaryLabelColor
         subStatusLabel.frame = NSRect(x: 70, y: 35, width: statusBox.bounds.width - 90, height: 16)
-        subStatusLabel.tag = 101
         statusBox.addSubview(subStatusLabel)
 
         // Progress indicator
@@ -740,23 +765,87 @@ class MistViewController: NSViewController {
         progressIndicator.startAnimation(nil)
         statusBox.addSubview(progressIndicator)
 
-        // Action button
-        actionButton = NSButton(title: "Install from GitHub", target: self, action: #selector(actionClicked))
-        actionButton.bezelStyle = .rounded
-        actionButton.frame = NSRect(x: (view.bounds.width - 180) / 2, y: margin + 50, width: 180, height: 32)
-        actionButton.isHidden = true
-        view.addSubview(actionButton)
+        // Install button
+        installButton = NSButton(title: "Install from GitHub", target: self, action: #selector(installClicked))
+        installButton.bezelStyle = .rounded
+        installButton.frame = NSRect(x: (view.bounds.width - 180) / 2, y: 40, width: 180, height: 32)
+        installButton.isHidden = true
+        installView.addSubview(installButton)
 
-        // Link to mist website
+        // GitHub link
         let linkButton = NSButton(title: "Visit Mist on GitHub", target: self, action: #selector(openMistGitHub))
         linkButton.bezelStyle = .rounded
-        linkButton.frame = NSRect(x: (view.bounds.width - 150) / 2, y: margin, width: 150, height: 24)
-        view.addSubview(linkButton)
+        linkButton.frame = NSRect(x: (view.bounds.width - 150) / 2, y: 10, width: 150, height: 24)
+        installView.addSubview(linkButton)
+    }
+
+    private func setupListView(margin: CGFloat) {
+        listView = NSView(frame: NSRect(x: 0, y: 0, width: view.bounds.width, height: 280))
+        listView.isHidden = true
+        view.addSubview(listView)
+
+        // Status label
+        listStatusLabel = NSTextField(labelWithString: "Fetching available installers...")
+        listStatusLabel.font = NSFont.systemFont(ofSize: 12)
+        listStatusLabel.textColor = .secondaryLabelColor
+        listStatusLabel.frame = NSRect(x: margin, y: 250, width: view.bounds.width - margin * 2 - 100, height: 18)
+        listView.addSubview(listStatusLabel)
+
+        // Progress indicator
+        listProgressIndicator = NSProgressIndicator(frame: NSRect(x: view.bounds.width - margin - 80, y: 252, width: 16, height: 16))
+        listProgressIndicator.style = .spinning
+        listProgressIndicator.controlSize = .small
+        listView.addSubview(listProgressIndicator)
+
+        // Refresh button
+        refreshButton = NSButton(title: "Refresh", target: self, action: #selector(refreshClicked))
+        refreshButton.bezelStyle = .rounded
+        refreshButton.frame = NSRect(x: view.bounds.width - margin - 70, y: 248, width: 60, height: 24)
+        refreshButton.isHidden = true
+        listView.addSubview(refreshButton)
+
+        // Table view
+        scrollView = NSScrollView(frame: NSRect(x: margin, y: 50, width: view.bounds.width - margin * 2, height: 190))
+        scrollView.hasVerticalScroller = true
+        scrollView.borderType = .bezelBorder
+
+        tableView = NSTableView()
+        tableView.delegate = self
+        tableView.dataSource = self
+
+        let nameColumn = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("name"))
+        nameColumn.title = "Name"
+        nameColumn.width = 180
+        tableView.addTableColumn(nameColumn)
+
+        let versionColumn = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("version"))
+        versionColumn.title = "Version"
+        versionColumn.width = 80
+        tableView.addTableColumn(versionColumn)
+
+        let buildColumn = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("build"))
+        buildColumn.title = "Build"
+        buildColumn.width = 80
+        tableView.addTableColumn(buildColumn)
+
+        let sizeColumn = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("size"))
+        sizeColumn.title = "Size"
+        sizeColumn.width = 80
+        tableView.addTableColumn(sizeColumn)
+
+        scrollView.documentView = tableView
+        listView.addSubview(scrollView)
+
+        // Download button
+        downloadButton = NSButton(title: "Download Selected", target: self, action: #selector(downloadClicked))
+        downloadButton.bezelStyle = .rounded
+        downloadButton.frame = NSRect(x: (view.bounds.width - 150) / 2, y: 10, width: 150, height: 32)
+        downloadButton.isEnabled = false
+        listView.addSubview(downloadButton)
     }
 
     private func checkMistInstallation() {
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            // Check if mist-cli is installed
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/usr/bin/which")
             process.arguments = ["mist"]
@@ -789,66 +878,137 @@ class MistViewController: NSViewController {
         progressIndicator.isHidden = true
 
         if installed {
-            statusLabel.stringValue = "Mist is installed"
-            if let subLabel = view.viewWithTag(101) as? NSTextField {
-                subLabel.stringValue = "Ready to download macOS installers"
-            }
-            if let iconView = view.subviews.first(where: { $0 is NSBox })?.subviews.first(where: { $0.tag == 100 }) as? NSImageView {
-                if #available(macOS 11.0, *) {
-                    let config = NSImage.SymbolConfiguration(pointSize: 30, weight: .medium)
-                    iconView.image = NSImage(systemSymbolName: "checkmark.circle.fill", accessibilityDescription: nil)?.withSymbolConfiguration(config)
-                    iconView.contentTintColor = .systemGreen
-                }
-            }
-            actionButton.title = "Open Mist"
-            actionButton.isHidden = false
+            installView.isHidden = true
+            listView.isHidden = false
+            fetchInstallerList()
         } else {
+            installView.isHidden = false
+            listView.isHidden = true
             statusLabel.stringValue = "Mist is not installed"
-            if let subLabel = view.viewWithTag(101) as? NSTextField {
-                subLabel.stringValue = "Download and install from GitHub"
+            subStatusLabel.stringValue = "Download and install from GitHub"
+
+            if #available(macOS 11.0, *) {
+                let config = NSImage.SymbolConfiguration(pointSize: 30, weight: .medium)
+                statusIconView.image = NSImage(systemSymbolName: "xmark.circle.fill", accessibilityDescription: nil)?.withSymbolConfiguration(config)
+                statusIconView.contentTintColor = .systemRed
             }
-            if let iconView = view.subviews.first(where: { $0 is NSBox })?.subviews.first(where: { $0.tag == 100 }) as? NSImageView {
-                if #available(macOS 11.0, *) {
-                    let config = NSImage.SymbolConfiguration(pointSize: 30, weight: .medium)
-                    iconView.image = NSImage(systemSymbolName: "xmark.circle.fill", accessibilityDescription: nil)?.withSymbolConfiguration(config)
-                    iconView.contentTintColor = .systemRed
+            installButton.isHidden = false
+        }
+    }
+
+    private func fetchInstallerList() {
+        listStatusLabel.stringValue = "Fetching available installers..."
+        listProgressIndicator.isHidden = false
+        listProgressIndicator.startAnimation(nil)
+        refreshButton.isHidden = true
+
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/local/bin/mist")
+            process.arguments = ["list", "installer", "--export", "json"]
+
+            let pipe = Pipe()
+            process.standardOutput = pipe
+            process.standardError = pipe
+
+            do {
+                try process.run()
+                process.waitUntilExit()
+
+                let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                let installers = self?.parseInstallerJSON(data) ?? []
+
+                DispatchQueue.main.async {
+                    self?.availableInstallers = installers
+                    self?.tableView.reloadData()
+                    self?.listProgressIndicator.stopAnimation(nil)
+                    self?.listProgressIndicator.isHidden = true
+                    self?.refreshButton.isHidden = false
+
+                    if installers.isEmpty {
+                        self?.listStatusLabel.stringValue = "No installers found. Try refreshing."
+                    } else {
+                        self?.listStatusLabel.stringValue = "Found \(installers.count) available installer(s)"
+                    }
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    self?.listProgressIndicator.stopAnimation(nil)
+                    self?.listProgressIndicator.isHidden = true
+                    self?.refreshButton.isHidden = false
+                    self?.listStatusLabel.stringValue = "Error fetching installers"
                 }
             }
-            actionButton.title = "Install from GitHub"
-            actionButton.isHidden = false
         }
+    }
+
+    private func parseInstallerJSON(_ data: Data) -> [(name: String, version: String, build: String, size: String)] {
+        var installers: [(name: String, version: String, build: String, size: String)] = []
+
+        do {
+            if let jsonArray = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
+                for item in jsonArray {
+                    let name = item["name"] as? String ?? ""
+                    let version = item["version"] as? String ?? ""
+                    let build = item["build"] as? String ?? ""
+                    let sizeBytes = item["size"] as? Int64 ?? 0
+                    let sizeGB = String(format: "%.1f GB", Double(sizeBytes) / 1_000_000_000)
+
+                    if !name.isEmpty {
+                        installers.append((name: name, version: version, build: build, size: sizeGB))
+                    }
+                }
+            }
+        } catch {
+            // JSON parsing failed
+        }
+
+        return installers
     }
 
     @objc private func backClicked() {
         onBack?()
     }
 
-    @objc private func actionClicked() {
-        if mistInstalled {
-            // Open mist GUI or run mist list
-            let script = "tell application \"Terminal\"\n    activate\n    do script \"mist list installer\"\nend tell"
+    @objc private func installClicked() {
+        installMistFromGitHub()
+    }
+
+    @objc private func refreshClicked() {
+        fetchInstallerList()
+    }
+
+    @objc private func downloadClicked() {
+        let selectedRow = tableView.selectedRow
+        guard selectedRow >= 0 && selectedRow < availableInstallers.count else { return }
+
+        let installer = availableInstallers[selectedRow]
+
+        let alert = NSAlert()
+        alert.messageText = "Download \(installer.name)?"
+        alert.informativeText = "Version: \(installer.version)\nBuild: \(installer.build)\nSize: \(installer.size)\n\nThe installer will be downloaded to /Applications."
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "Download")
+        alert.addButton(withTitle: "Cancel")
+
+        if alert.runModal() == .alertFirstButtonReturn {
+            let script = "tell application \"Terminal\"\n    activate\n    do script \"mist download installer '\(installer.name)' application --output-directory /Applications\"\nend tell"
 
             var error: NSDictionary?
             if let appleScript = NSAppleScript(source: script) {
                 appleScript.executeAndReturnError(&error)
             }
-        } else {
-            // Download and install mist from GitHub
-            installMistFromGitHub()
         }
     }
 
     private func installMistFromGitHub() {
-        actionButton.isEnabled = false
-        actionButton.title = "Downloading..."
-
-        // Update status
+        installButton.isEnabled = false
+        installButton.title = "Downloading..."
         statusLabel.stringValue = "Fetching latest release..."
         progressIndicator.isHidden = false
         progressIndicator.startAnimation(nil)
 
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            // Fetch latest release info from GitHub API
             guard let apiURL = URL(string: "https://api.github.com/repos/ninxsoft/mist-cli/releases/latest") else {
                 self?.showInstallError("Invalid API URL")
                 return
@@ -862,7 +1022,6 @@ class MistViewController: NSViewController {
                     return
                 }
 
-                // Find the .pkg file
                 var pkgURL: String?
                 for asset in assets {
                     if let name = asset["name"] as? String,
@@ -883,7 +1042,6 @@ class MistViewController: NSViewController {
                     self?.statusLabel.stringValue = "Downloading PKG..."
                 }
 
-                // Download the PKG
                 let pkgData = try Data(contentsOf: downloadURL)
                 let tempDir = FileManager.default.temporaryDirectory
                 let pkgPath = tempDir.appendingPathComponent("mist-cli.pkg")
@@ -895,21 +1053,17 @@ class MistViewController: NSViewController {
                     self?.progressIndicator.stopAnimation(nil)
                     self?.progressIndicator.isHidden = true
 
-                    // Run installer in Terminal
-                    let script = "tell application \"Terminal\"\n    activate\n    do script \"sudo installer -pkg '\(pkgPath.path)' -target / && echo '' && echo 'Mist installed successfully! You can now use: mist list installer'\"\nend tell"
+                    let script = "tell application \"Terminal\"\n    activate\n    do script \"sudo installer -pkg '\(pkgPath.path)' -target / && echo '' && echo 'Mist installed successfully!'\"\nend tell"
 
                     var error: NSDictionary?
                     if let appleScript = NSAppleScript(source: script) {
                         appleScript.executeAndReturnError(&error)
                     }
 
-                    self?.actionButton.isEnabled = true
-                    self?.actionButton.title = "Install from GitHub"
+                    self?.installButton.isEnabled = true
+                    self?.installButton.title = "Install from GitHub"
                     self?.statusLabel.stringValue = "Installation started in Terminal"
-
-                    if let subLabel = self?.view.viewWithTag(101) as? NSTextField {
-                        subLabel.stringValue = "Check Terminal for progress"
-                    }
+                    self?.subStatusLabel.stringValue = "Restart app after installation completes"
                 }
 
             } catch {
@@ -922,8 +1076,8 @@ class MistViewController: NSViewController {
         DispatchQueue.main.async { [weak self] in
             self?.progressIndicator.stopAnimation(nil)
             self?.progressIndicator.isHidden = true
-            self?.actionButton.isEnabled = true
-            self?.actionButton.title = "Install from GitHub"
+            self?.installButton.isEnabled = true
+            self?.installButton.title = "Install from GitHub"
             self?.statusLabel.stringValue = "Installation failed"
 
             let alert = NSAlert()
@@ -939,6 +1093,38 @@ class MistViewController: NSViewController {
         if let url = URL(string: "https://github.com/ninxsoft/mist-cli") {
             NSWorkspace.shared.open(url)
         }
+    }
+}
+
+extension MistViewController: NSTableViewDelegate, NSTableViewDataSource {
+    func numberOfRows(in tableView: NSTableView) -> Int {
+        return availableInstallers.count
+    }
+
+    func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
+        let installer = availableInstallers[row]
+
+        let textField = NSTextField(labelWithString: "")
+        textField.font = NSFont.systemFont(ofSize: 12)
+
+        switch tableColumn?.identifier.rawValue {
+        case "name":
+            textField.stringValue = installer.name
+        case "version":
+            textField.stringValue = installer.version
+        case "build":
+            textField.stringValue = installer.build
+        case "size":
+            textField.stringValue = installer.size
+        default:
+            break
+        }
+
+        return textField
+    }
+
+    func tableViewSelectionDidChange(_ notification: Notification) {
+        downloadButton.isEnabled = tableView.selectedRow >= 0
     }
 }
 
