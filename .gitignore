@@ -1,0 +1,16 @@
+# Build output
+build/
+
+# macOS
+.DS_Store
+*.swp
+*~
+
+# Xcode
+*.xcodeproj/
+*.xcworkspace/
+xcuserdata/
+DerivedData/
+
+# Generated icon files (can be regenerated)
+Resources/AppIcon.iconset/
