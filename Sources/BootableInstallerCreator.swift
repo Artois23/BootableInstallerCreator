@@ -104,19 +104,20 @@ class SplashViewController: NSViewController {
 
     private func createOptionButton(title: String, subtitle: String, icon: String, frame: NSRect) -> NSButton {
         let button = NSButton(frame: frame)
+        button.title = ""
         button.bezelStyle = .rounded
         button.isBordered = true
 
         // Create a container view for the button content
-        let containerView = NSView(frame: NSRect(x: 0, y: 0, width: frame.width, height: frame.height))
+        let inset: CGFloat = 8
+        let containerView = NSView(frame: NSRect(x: inset, y: inset, width: frame.width - inset * 2, height: frame.height - inset * 2))
 
         // Icon
         let iconSize: CGFloat = 32
-        let iconY = frame.height - 30
         if #available(macOS 11.0, *) {
             let config = NSImage.SymbolConfiguration(pointSize: iconSize, weight: .medium)
             if let symbolImage = NSImage(systemSymbolName: icon, accessibilityDescription: nil)?.withSymbolConfiguration(config) {
-                let iconView = NSImageView(frame: NSRect(x: (frame.width - iconSize) / 2, y: iconY - iconSize, width: iconSize, height: iconSize))
+                let iconView = NSImageView(frame: NSRect(x: (containerView.bounds.width - iconSize) / 2, y: containerView.bounds.height - iconSize - 5, width: iconSize, height: iconSize))
                 iconView.image = symbolImage
                 iconView.contentTintColor = .controlAccentColor
                 containerView.addSubview(iconView)
@@ -127,7 +128,7 @@ class SplashViewController: NSViewController {
         let titleLabel = NSTextField(labelWithString: title)
         titleLabel.font = NSFont.boldSystemFont(ofSize: 13)
         titleLabel.alignment = .center
-        titleLabel.frame = NSRect(x: 5, y: 28, width: frame.width - 10, height: 18)
+        titleLabel.frame = NSRect(x: 0, y: 20, width: containerView.bounds.width, height: 18)
         containerView.addSubview(titleLabel)
 
         // Subtitle
@@ -135,7 +136,7 @@ class SplashViewController: NSViewController {
         subtitleLabel.font = NSFont.systemFont(ofSize: 11)
         subtitleLabel.textColor = .secondaryLabelColor
         subtitleLabel.alignment = .center
-        subtitleLabel.frame = NSRect(x: 5, y: 10, width: frame.width - 10, height: 16)
+        subtitleLabel.frame = NSRect(x: 0, y: 3, width: containerView.bounds.width, height: 16)
         containerView.addSubview(subtitleLabel)
 
         button.addSubview(containerView)
@@ -246,18 +247,19 @@ class GetInstallerViewController: NSViewController {
 
     private func createOptionButton(title: String, subtitle: String, icon: String, frame: NSRect) -> NSButton {
         let button = NSButton(frame: frame)
+        button.title = ""
         button.bezelStyle = .rounded
         button.isBordered = true
 
-        let containerView = NSView(frame: NSRect(x: 0, y: 0, width: frame.width, height: frame.height))
+        let inset: CGFloat = 8
+        let containerView = NSView(frame: NSRect(x: inset, y: inset, width: frame.width - inset * 2, height: frame.height - inset * 2))
 
         // Icon
         let iconSize: CGFloat = 32
-        let iconY = frame.height - 35
         if #available(macOS 11.0, *) {
             let config = NSImage.SymbolConfiguration(pointSize: iconSize, weight: .medium)
             if let symbolImage = NSImage(systemSymbolName: icon, accessibilityDescription: nil)?.withSymbolConfiguration(config) {
-                let iconView = NSImageView(frame: NSRect(x: (frame.width - iconSize) / 2, y: iconY - iconSize, width: iconSize, height: iconSize))
+                let iconView = NSImageView(frame: NSRect(x: (containerView.bounds.width - iconSize) / 2, y: containerView.bounds.height - iconSize - 5, width: iconSize, height: iconSize))
                 iconView.image = symbolImage
                 iconView.contentTintColor = .controlAccentColor
                 containerView.addSubview(iconView)
@@ -268,7 +270,7 @@ class GetInstallerViewController: NSViewController {
         let titleLabel = NSTextField(labelWithString: title)
         titleLabel.font = NSFont.boldSystemFont(ofSize: 13)
         titleLabel.alignment = .center
-        titleLabel.frame = NSRect(x: 5, y: 28, width: frame.width - 10, height: 18)
+        titleLabel.frame = NSRect(x: 0, y: 22, width: containerView.bounds.width, height: 18)
         containerView.addSubview(titleLabel)
 
         // Subtitle
@@ -276,7 +278,7 @@ class GetInstallerViewController: NSViewController {
         subtitleLabel.font = NSFont.systemFont(ofSize: 10)
         subtitleLabel.textColor = .secondaryLabelColor
         subtitleLabel.alignment = .center
-        subtitleLabel.frame = NSRect(x: 5, y: 12, width: frame.width - 10, height: 14)
+        subtitleLabel.frame = NSRect(x: 0, y: 5, width: containerView.bounds.width, height: 14)
         containerView.addSubview(subtitleLabel)
 
         button.addSubview(containerView)
