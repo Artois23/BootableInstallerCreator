@@ -146,9 +146,9 @@ class SplashViewController: NSViewController {
     @objc private func getInstallerClicked() {
         let getInstallerVC = GetInstallerViewController()
         NavigationContext.shared.viewControllerStack.append(self)
-        getInstallerVC.onBack = { [weak self] in
+        getInstallerVC.onBack = {
             if let previousVC = NavigationContext.shared.viewControllerStack.popLast() {
-                self?.view.window?.contentViewController = previousVC
+                NSApp.keyWindow?.contentViewController = previousVC
             }
         }
         view.window?.contentViewController = getInstallerVC
@@ -157,9 +157,9 @@ class SplashViewController: NSViewController {
     @objc private func createVolumeClicked() {
         let mainVC = MainViewController()
         NavigationContext.shared.viewControllerStack.append(self)
-        mainVC.onBack = { [weak self] in
+        mainVC.onBack = {
             if let previousVC = NavigationContext.shared.viewControllerStack.popLast() {
-                self?.view.window?.contentViewController = previousVC
+                NSApp.keyWindow?.contentViewController = previousVC
             }
         }
         view.window?.contentViewController = mainVC
@@ -291,9 +291,9 @@ class GetInstallerViewController: NSViewController {
     @objc private func appStoreClicked() {
         let appStoreVC = AppStoreViewController()
         NavigationContext.shared.viewControllerStack.append(self)
-        appStoreVC.onBack = { [weak self] in
+        appStoreVC.onBack = {
             if let previousVC = NavigationContext.shared.viewControllerStack.popLast() {
-                self?.view.window?.contentViewController = previousVC
+                NSApp.keyWindow?.contentViewController = previousVC
             }
         }
         view.window?.contentViewController = appStoreVC
@@ -302,9 +302,9 @@ class GetInstallerViewController: NSViewController {
     @objc private func terminalClicked() {
         let terminalVC = TerminalViewController()
         NavigationContext.shared.viewControllerStack.append(self)
-        terminalVC.onBack = { [weak self] in
+        terminalVC.onBack = {
             if let previousVC = NavigationContext.shared.viewControllerStack.popLast() {
-                self?.view.window?.contentViewController = previousVC
+                NSApp.keyWindow?.contentViewController = previousVC
             }
         }
         view.window?.contentViewController = terminalVC
@@ -313,9 +313,9 @@ class GetInstallerViewController: NSViewController {
     @objc private func mistClicked() {
         let mistVC = MistViewController()
         NavigationContext.shared.viewControllerStack.append(self)
-        mistVC.onBack = { [weak self] in
+        mistVC.onBack = {
             if let previousVC = NavigationContext.shared.viewControllerStack.popLast() {
-                self?.view.window?.contentViewController = previousVC
+                NSApp.keyWindow?.contentViewController = previousVC
             }
         }
         view.window?.contentViewController = mistVC
