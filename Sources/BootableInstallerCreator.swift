@@ -720,7 +720,7 @@ class MistViewController: NSViewController {
         statusBox.addSubview(progressIndicator)
 
         // Action button
-        actionButton = NSButton(title: "Install via Homebrew", target: self, action: #selector(actionClicked))
+        actionButton = NSButton(title: "Install from GitHub", target: self, action: #selector(actionClicked))
         actionButton.bezelStyle = .rounded
         actionButton.frame = NSRect(x: (view.bounds.width - 180) / 2, y: margin + 50, width: 180, height: 32)
         actionButton.isHidden = true
@@ -784,7 +784,7 @@ class MistViewController: NSViewController {
         } else {
             statusLabel.stringValue = "Mist is not installed"
             if let subLabel = view.viewWithTag(101) as? NSTextField {
-                subLabel.stringValue = "Install via Homebrew to continue"
+                subLabel.stringValue = "Download and install from GitHub"
             }
             if let iconView = view.subviews.first(where: { $0 is NSBox })?.subviews.first(where: { $0.tag == 100 }) as? NSImageView {
                 if #available(macOS 11.0, *) {
@@ -793,7 +793,7 @@ class MistViewController: NSViewController {
                     iconView.contentTintColor = .systemRed
                 }
             }
-            actionButton.title = "Install via Homebrew"
+            actionButton.title = "Install from GitHub"
             actionButton.isHidden = false
         }
     }
@@ -812,47 +812,105 @@ class MistViewController: NSViewController {
                 appleScript.executeAndReturnError(&error)
             }
         } else {
-            // Check if Homebrew is installed first
-            let brewCheck = Process()
-            brewCheck.executableURL = URL(fileURLWithPath: "/usr/bin/which")
-            brewCheck.arguments = ["brew"]
+            // Download and install mist from GitHub
+            installMistFromGitHub()
+        }
+    }
 
-            let pipe = Pipe()
-            brewCheck.standardOutput = pipe
+    private func installMistFromGitHub() {
+        actionButton.isEnabled = false
+        actionButton.title = "Downloading..."
+
+        // Update status
+        statusLabel.stringValue = "Fetching latest release..."
+        progressIndicator.isHidden = false
+        progressIndicator.startAnimation(nil)
+
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            // Fetch latest release info from GitHub API
+            guard let apiURL = URL(string: "https://api.github.com/repos/ninxsoft/mist-cli/releases/latest") else {
+                self?.showInstallError("Invalid API URL")
+                return
+            }
 
             do {
-                try brewCheck.run()
-                brewCheck.waitUntilExit()
+                let data = try Data(contentsOf: apiURL)
+                guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                      let assets = json["assets"] as? [[String: Any]] else {
+                    self?.showInstallError("Failed to parse release info")
+                    return
+                }
 
-                if brewCheck.terminationStatus == 0 {
-                    // Homebrew is installed, install mist
-                    let script = "tell application \"Terminal\"\n    activate\n    do script \"brew install mist-cli && echo 'Mist installed successfully! You can now use: mist list installer'\"\nend tell"
+                // Find the .pkg file
+                var pkgURL: String?
+                for asset in assets {
+                    if let name = asset["name"] as? String,
+                       name.hasSuffix(".pkg"),
+                       let downloadURL = asset["browser_download_url"] as? String {
+                        pkgURL = downloadURL
+                        break
+                    }
+                }
+
+                guard let downloadURLString = pkgURL,
+                      let downloadURL = URL(string: downloadURLString) else {
+                    self?.showInstallError("No PKG found in release")
+                    return
+                }
+
+                DispatchQueue.main.async {
+                    self?.statusLabel.stringValue = "Downloading PKG..."
+                }
+
+                // Download the PKG
+                let pkgData = try Data(contentsOf: downloadURL)
+                let tempDir = FileManager.default.temporaryDirectory
+                let pkgPath = tempDir.appendingPathComponent("mist-cli.pkg")
+
+                try pkgData.write(to: pkgPath)
+
+                DispatchQueue.main.async {
+                    self?.statusLabel.stringValue = "Installing..."
+                    self?.progressIndicator.stopAnimation(nil)
+                    self?.progressIndicator.isHidden = true
+
+                    // Run installer in Terminal
+                    let script = "tell application \"Terminal\"\n    activate\n    do script \"sudo installer -pkg '\(pkgPath.path)' -target / && echo '' && echo 'Mist installed successfully! You can now use: mist list installer'\"\nend tell"
 
                     var error: NSDictionary?
                     if let appleScript = NSAppleScript(source: script) {
                         appleScript.executeAndReturnError(&error)
                     }
-                } else {
-                    showHomebrewNotInstalledAlert()
+
+                    self?.actionButton.isEnabled = true
+                    self?.actionButton.title = "Install from GitHub"
+                    self?.statusLabel.stringValue = "Installation started in Terminal"
+
+                    if let subLabel = self?.view.viewWithTag(101) as? NSTextField {
+                        subLabel.stringValue = "Check Terminal for progress"
+                    }
                 }
+
             } catch {
-                showHomebrewNotInstalledAlert()
+                self?.showInstallError(error.localizedDescription)
             }
         }
     }
 
-    private func showHomebrewNotInstalledAlert() {
-        let alert = NSAlert()
-        alert.messageText = "Homebrew Not Installed"
-        alert.informativeText = "Homebrew is required to install mist. Would you like to open the Homebrew installation page?"
-        alert.alertStyle = .warning
-        alert.addButton(withTitle: "Open Homebrew Website")
-        alert.addButton(withTitle: "Cancel")
+    private func showInstallError(_ message: String) {
+        DispatchQueue.main.async { [weak self] in
+            self?.progressIndicator.stopAnimation(nil)
+            self?.progressIndicator.isHidden = true
+            self?.actionButton.isEnabled = true
+            self?.actionButton.title = "Install from GitHub"
+            self?.statusLabel.stringValue = "Installation failed"
 
-        if alert.runModal() == .alertFirstButtonReturn {
-            if let url = URL(string: "https://brew.sh") {
-                NSWorkspace.shared.open(url)
-            }
+            let alert = NSAlert()
+            alert.messageText = "Installation Failed"
+            alert.informativeText = message
+            alert.alertStyle = .critical
+            alert.addButton(withTitle: "OK")
+            alert.runModal()
         }
     }
 
