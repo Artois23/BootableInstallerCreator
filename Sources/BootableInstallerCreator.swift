@@ -3,19 +3,19 @@ import Cocoa
 // MARK: - App Delegate
 class AppDelegate: NSObject, NSApplicationDelegate {
     var window: NSWindow!
-    var mainViewController: MainViewController!
+    var splashViewController: SplashViewController!
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        mainViewController = MainViewController()
+        splashViewController = SplashViewController()
 
         window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 500, height: 340),
+            contentRect: NSRect(x: 0, y: 0, width: 500, height: 400),
             styleMask: [.titled, .closable, .miniaturizable],
             backing: .buffered,
             defer: false
         )
         window.title = "Bootable Installer Creator"
-        window.contentViewController = mainViewController
+        window.contentViewController = splashViewController
         window.center()
         window.makeKeyAndOrderFront(nil)
 
@@ -27,8 +27,270 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
-// MARK: - Main View Controller
+// MARK: - Splash View Controller
+class SplashViewController: NSViewController {
+
+    override func loadView() {
+        view = NSView(frame: NSRect(x: 0, y: 0, width: 500, height: 400))
+    }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        setupUI()
+    }
+
+    private func setupUI() {
+        let margin: CGFloat = 40
+        let centerX = view.bounds.width / 2
+
+        // App icon
+        let iconSize: CGFloat = 80
+        let iconView = NSImageView(frame: NSRect(x: centerX - iconSize/2, y: view.bounds.height - margin - iconSize, width: iconSize, height: iconSize))
+        iconView.image = NSApp.applicationIconImage
+        iconView.imageScaling = .scaleProportionallyUpOrDown
+        view.addSubview(iconView)
+
+        // Title
+        let titleLabel = NSTextField(labelWithString: "Bootable Installer Creator")
+        titleLabel.font = NSFont.boldSystemFont(ofSize: 24)
+        titleLabel.alignment = .center
+        titleLabel.frame = NSRect(x: margin, y: view.bounds.height - margin - iconSize - 50, width: view.bounds.width - margin * 2, height: 30)
+        view.addSubview(titleLabel)
+
+        // Subtitle
+        let subtitleLabel = NSTextField(labelWithString: "Create bootable macOS installation drives")
+        subtitleLabel.font = NSFont.systemFont(ofSize: 14)
+        subtitleLabel.textColor = .secondaryLabelColor
+        subtitleLabel.alignment = .center
+        subtitleLabel.frame = NSRect(x: margin, y: view.bounds.height - margin - iconSize - 80, width: view.bounds.width - margin * 2, height: 20)
+        view.addSubview(subtitleLabel)
+
+        // Option buttons container
+        let buttonWidth: CGFloat = 200
+        let buttonHeight: CGFloat = 100
+        let buttonSpacing: CGFloat = 30
+        let totalWidth = buttonWidth * 2 + buttonSpacing
+        let startX = (view.bounds.width - totalWidth) / 2
+        let buttonY: CGFloat = 80
+
+        // Get macOS Installer button
+        let getInstallerButton = createOptionButton(
+            title: "Get macOS Installer",
+            subtitle: "Download from Apple",
+            icon: "arrow.down.circle.fill",
+            frame: NSRect(x: startX, y: buttonY, width: buttonWidth, height: buttonHeight)
+        )
+        getInstallerButton.target = self
+        getInstallerButton.action = #selector(getInstallerClicked)
+        view.addSubview(getInstallerButton)
+
+        // Create Bootable Volume button
+        let createVolumeButton = createOptionButton(
+            title: "Create Bootable Volume",
+            subtitle: "Use existing installer",
+            icon: "externaldrive.fill.badge.plus",
+            frame: NSRect(x: startX + buttonWidth + buttonSpacing, y: buttonY, width: buttonWidth, height: buttonHeight)
+        )
+        createVolumeButton.target = self
+        createVolumeButton.action = #selector(createVolumeClicked)
+        view.addSubview(createVolumeButton)
+    }
+
+    private func createOptionButton(title: String, subtitle: String, icon: String, frame: NSRect) -> NSButton {
+        let button = NSButton(frame: frame)
+        button.bezelStyle = .rounded
+        button.isBordered = true
+
+        // Create a container view for the button content
+        let containerView = NSView(frame: NSRect(x: 0, y: 0, width: frame.width, height: frame.height))
+
+        // Icon
+        let iconSize: CGFloat = 32
+        let iconY = frame.height - 30
+        if #available(macOS 11.0, *) {
+            let config = NSImage.SymbolConfiguration(pointSize: iconSize, weight: .medium)
+            if let symbolImage = NSImage(systemSymbolName: icon, accessibilityDescription: nil)?.withSymbolConfiguration(config) {
+                let iconView = NSImageView(frame: NSRect(x: (frame.width - iconSize) / 2, y: iconY - iconSize, width: iconSize, height: iconSize))
+                iconView.image = symbolImage
+                iconView.contentTintColor = .controlAccentColor
+                containerView.addSubview(iconView)
+            }
+        }
+
+        // Title
+        let titleLabel = NSTextField(labelWithString: title)
+        titleLabel.font = NSFont.boldSystemFont(ofSize: 13)
+        titleLabel.alignment = .center
+        titleLabel.frame = NSRect(x: 5, y: 28, width: frame.width - 10, height: 18)
+        containerView.addSubview(titleLabel)
+
+        // Subtitle
+        let subtitleLabel = NSTextField(labelWithString: subtitle)
+        subtitleLabel.font = NSFont.systemFont(ofSize: 11)
+        subtitleLabel.textColor = .secondaryLabelColor
+        subtitleLabel.alignment = .center
+        subtitleLabel.frame = NSRect(x: 5, y: 10, width: frame.width - 10, height: 16)
+        containerView.addSubview(subtitleLabel)
+
+        button.addSubview(containerView)
+
+        return button
+    }
+
+    @objc private func getInstallerClicked() {
+        let getInstallerVC = GetInstallerViewController()
+        getInstallerVC.onBack = { [weak self] in
+            self?.view.window?.contentViewController = self
+        }
+        view.window?.contentViewController = getInstallerVC
+    }
+
+    @objc private func createVolumeClicked() {
+        let mainVC = MainViewController()
+        mainVC.onBack = { [weak self] in
+            self?.view.window?.contentViewController = self
+        }
+        view.window?.contentViewController = mainVC
+    }
+}
+
+// MARK: - Get Installer View Controller
+class GetInstallerViewController: NSViewController {
+
+    var onBack: (() -> Void)?
+
+    private let installerOptions: [(name: String, version: String, url: String)] = [
+        ("macOS Sequoia", "15", "macappstore://apps.apple.com/app/macos-sequoia/id6596773750"),
+        ("macOS Sonoma", "14", "macappstore://apps.apple.com/app/macos-sonoma/id6450717509"),
+        ("macOS Ventura", "13", "macappstore://apps.apple.com/app/macos-ventura/id1638787999"),
+        ("macOS Monterey", "12", "macappstore://apps.apple.com/app/macos-monterey/id1576738294"),
+        ("macOS Big Sur", "11", "macappstore://apps.apple.com/app/macos-big-sur/id1526878132")
+    ]
+
+    override func loadView() {
+        view = NSView(frame: NSRect(x: 0, y: 0, width: 500, height: 400))
+    }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        setupUI()
+    }
+
+    private func setupUI() {
+        let margin: CGFloat = 20
+
+        // Back button
+        let backButton = NSButton(title: "< Back", target: self, action: #selector(backClicked))
+        backButton.bezelStyle = .rounded
+        backButton.frame = NSRect(x: margin, y: view.bounds.height - margin - 24, width: 70, height: 24)
+        view.addSubview(backButton)
+
+        // Title
+        let titleLabel = NSTextField(labelWithString: "Get macOS Installer")
+        titleLabel.font = NSFont.boldSystemFont(ofSize: 20)
+        titleLabel.frame = NSRect(x: margin, y: view.bounds.height - margin - 70, width: view.bounds.width - margin * 2, height: 28)
+        view.addSubview(titleLabel)
+
+        // Subtitle
+        let subtitleLabel = NSTextField(labelWithString: "Select a macOS version to download from the App Store:")
+        subtitleLabel.font = NSFont.systemFont(ofSize: 13)
+        subtitleLabel.textColor = .secondaryLabelColor
+        subtitleLabel.frame = NSRect(x: margin, y: view.bounds.height - margin - 95, width: view.bounds.width - margin * 2, height: 18)
+        view.addSubview(subtitleLabel)
+
+        // Installer list
+        let listStartY = view.bounds.height - 140
+        let rowHeight: CGFloat = 50
+
+        for (index, installer) in installerOptions.enumerated() {
+            let rowY = listStartY - CGFloat(index) * rowHeight
+
+            let rowBox = NSBox(frame: NSRect(x: margin, y: rowY - rowHeight + 10, width: view.bounds.width - margin * 2, height: rowHeight - 5))
+            rowBox.boxType = .custom
+            rowBox.fillColor = NSColor.controlBackgroundColor
+            rowBox.borderColor = NSColor.separatorColor
+            rowBox.borderWidth = 1
+            rowBox.cornerRadius = 8
+            view.addSubview(rowBox)
+
+            // Name label
+            let nameLabel = NSTextField(labelWithString: installer.name)
+            nameLabel.font = NSFont.systemFont(ofSize: 14, weight: .medium)
+            nameLabel.frame = NSRect(x: 15, y: 15, width: 200, height: 18)
+            rowBox.addSubview(nameLabel)
+
+            // Version label
+            let versionLabel = NSTextField(labelWithString: "Version \(installer.version)")
+            versionLabel.font = NSFont.systemFont(ofSize: 11)
+            versionLabel.textColor = .secondaryLabelColor
+            versionLabel.frame = NSRect(x: 15, y: 2, width: 100, height: 14)
+            rowBox.addSubview(versionLabel)
+
+            // Download button
+            let downloadButton = NSButton(title: "Open in App Store", target: self, action: #selector(downloadClicked(_:)))
+            downloadButton.bezelStyle = .rounded
+            downloadButton.tag = index
+            downloadButton.frame = NSRect(x: rowBox.bounds.width - 140, y: 10, width: 125, height: 26)
+            rowBox.addSubview(downloadButton)
+        }
+
+        // Terminal option
+        let terminalY = listStartY - CGFloat(installerOptions.count) * rowHeight - 30
+
+        let terminalLabel = NSTextField(labelWithString: "Or download via Terminal:")
+        terminalLabel.font = NSFont.systemFont(ofSize: 12, weight: .medium)
+        terminalLabel.frame = NSRect(x: margin, y: terminalY, width: view.bounds.width - margin * 2, height: 16)
+        view.addSubview(terminalLabel)
+
+        let commandBox = NSBox(frame: NSRect(x: margin, y: terminalY - 35, width: view.bounds.width - margin * 2, height: 30))
+        commandBox.boxType = .custom
+        commandBox.fillColor = NSColor(white: 0.15, alpha: 1.0)
+        commandBox.borderWidth = 0
+        commandBox.cornerRadius = 6
+        view.addSubview(commandBox)
+
+        let commandLabel = NSTextField(labelWithString: "softwareupdate --fetch-full-installer")
+        commandLabel.font = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
+        commandLabel.textColor = NSColor(white: 0.9, alpha: 1.0)
+        commandLabel.frame = NSRect(x: 10, y: 6, width: commandBox.bounds.width - 80, height: 18)
+        commandBox.addSubview(commandLabel)
+
+        let copyButton = NSButton(title: "Copy", target: self, action: #selector(copyCommand))
+        copyButton.bezelStyle = .rounded
+        copyButton.frame = NSRect(x: commandBox.bounds.width - 60, y: 3, width: 50, height: 24)
+        commandBox.addSubview(copyButton)
+    }
+
+    @objc private func backClicked() {
+        onBack?()
+    }
+
+    @objc private func downloadClicked(_ sender: NSButton) {
+        let installer = installerOptions[sender.tag]
+        if let url = URL(string: installer.url) {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    @objc private func copyCommand() {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString("softwareupdate --fetch-full-installer", forType: .string)
+
+        // Show brief feedback
+        let alert = NSAlert()
+        alert.messageText = "Copied!"
+        alert.informativeText = "Command copied to clipboard. Paste it in Terminal to download the latest macOS installer."
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
+    }
+}
+
+// MARK: - Main View Controller (Create Bootable Volume)
 class MainViewController: NSViewController {
+
+    var onBack: (() -> Void)?
 
     // UI Elements
     private var installerLabel: NSTextField!
@@ -50,7 +312,7 @@ class MainViewController: NSViewController {
     private var process: Process?
 
     override func loadView() {
-        view = NSView(frame: NSRect(x: 0, y: 0, width: 500, height: 340))
+        view = NSView(frame: NSRect(x: 0, y: 0, width: 500, height: 400))
     }
 
     override func viewDidLoad() {
@@ -66,6 +328,14 @@ class MainViewController: NSViewController {
         let spacing: CGFloat = 16
 
         var y = view.bounds.height - margin - rowHeight
+
+        // Back button
+        let backButton = NSButton(title: "< Back", target: self, action: #selector(backClicked))
+        backButton.bezelStyle = .rounded
+        backButton.frame = NSRect(x: margin, y: y, width: 70, height: 24)
+        view.addSubview(backButton)
+
+        y -= rowHeight + spacing
 
         // Title
         let titleLabel = NSTextField(labelWithString: "Create Bootable macOS Installer")
@@ -149,8 +419,6 @@ class MainViewController: NSViewController {
         statusLabel.frame = NSRect(x: margin, y: y, width: view.bounds.width - margin * 2, height: rowHeight)
         view.addSubview(statusLabel)
 
-        y -= rowHeight + spacing
-
         // Create button
         createButton = NSButton(title: "Create Bootable Installer", target: self, action: #selector(createInstaller))
         createButton.bezelStyle = .rounded
@@ -158,6 +426,10 @@ class MainViewController: NSViewController {
         let buttonW: CGFloat = 180
         createButton.frame = NSRect(x: (view.bounds.width - buttonW) / 2, y: margin, width: buttonW, height: 32)
         view.addSubview(createButton)
+    }
+
+    @objc private func backClicked() {
+        onBack?()
     }
 
     @objc private func browseInstaller() {
