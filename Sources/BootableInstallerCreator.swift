@@ -1,5 +1,11 @@
 import Cocoa
 
+// MARK: - Navigation Helper
+class NavigationContext {
+    static let shared = NavigationContext()
+    var viewControllerStack: [NSViewController] = []
+}
+
 // MARK: - App Delegate
 class AppDelegate: NSObject, NSApplicationDelegate {
     var window: NSWindow!
@@ -139,16 +145,22 @@ class SplashViewController: NSViewController {
 
     @objc private func getInstallerClicked() {
         let getInstallerVC = GetInstallerViewController()
+        NavigationContext.shared.viewControllerStack.append(self)
         getInstallerVC.onBack = { [weak self] in
-            self?.view.window?.contentViewController = self
+            if let previousVC = NavigationContext.shared.viewControllerStack.popLast() {
+                self?.view.window?.contentViewController = previousVC
+            }
         }
         view.window?.contentViewController = getInstallerVC
     }
 
     @objc private func createVolumeClicked() {
         let mainVC = MainViewController()
+        NavigationContext.shared.viewControllerStack.append(self)
         mainVC.onBack = { [weak self] in
-            self?.view.window?.contentViewController = self
+            if let previousVC = NavigationContext.shared.viewControllerStack.popLast() {
+                self?.view.window?.contentViewController = previousVC
+            }
         }
         view.window?.contentViewController = mainVC
     }
@@ -278,24 +290,33 @@ class GetInstallerViewController: NSViewController {
 
     @objc private func appStoreClicked() {
         let appStoreVC = AppStoreViewController()
+        NavigationContext.shared.viewControllerStack.append(self)
         appStoreVC.onBack = { [weak self] in
-            self?.view.window?.contentViewController = self
+            if let previousVC = NavigationContext.shared.viewControllerStack.popLast() {
+                self?.view.window?.contentViewController = previousVC
+            }
         }
         view.window?.contentViewController = appStoreVC
     }
 
     @objc private func terminalClicked() {
         let terminalVC = TerminalViewController()
+        NavigationContext.shared.viewControllerStack.append(self)
         terminalVC.onBack = { [weak self] in
-            self?.view.window?.contentViewController = self
+            if let previousVC = NavigationContext.shared.viewControllerStack.popLast() {
+                self?.view.window?.contentViewController = previousVC
+            }
         }
         view.window?.contentViewController = terminalVC
     }
 
     @objc private func mistClicked() {
         let mistVC = MistViewController()
+        NavigationContext.shared.viewControllerStack.append(self)
         mistVC.onBack = { [weak self] in
-            self?.view.window?.contentViewController = self
+            if let previousVC = NavigationContext.shared.viewControllerStack.popLast() {
+                self?.view.window?.contentViewController = previousVC
+            }
         }
         view.window?.contentViewController = mistVC
     }
